@@ -1,6 +1,6 @@
+use crate::error::{BackupError, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use crate::error::{BackupError, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
@@ -21,13 +21,14 @@ pub struct Config {
 
 impl Config {
     pub fn from_file(path: &str) -> Result<Self> {
-        let content = fs::read_to_string(path)
-            .map_err(|e| BackupError::FileSystem(format!("Failed to read config file {}: {}", path, e)))?;
-        
+        let content = fs::read_to_string(path).map_err(|e| {
+            BackupError::FileSystem(format!("Failed to read config file {}: {}", path, e))
+        })?;
+
         // Try to parse as direct array first, then as Config struct
         let databases: Vec<DatabaseConfig> = serde_json::from_str(&content)
             .map_err(|e| BackupError::Config(format!("Invalid JSON in config file: {}", e)))?;
-        
+
         let config = Config { databases };
         config.validate()?;
         Ok(config)
@@ -40,22 +41,40 @@ impl Config {
 
         for (i, db) in self.databases.iter().enumerate() {
             if db.name.is_empty() {
-                return Err(BackupError::Config(format!("Database {}: name cannot be empty", i)));
+                return Err(BackupError::Config(format!(
+                    "Database {}: name cannot be empty",
+                    i
+                )));
             }
             if db.database_name.is_empty() {
-                return Err(BackupError::Config(format!("Database {}: database_name cannot be empty", i)));
+                return Err(BackupError::Config(format!(
+                    "Database {}: database_name cannot be empty",
+                    i
+                )));
             }
             if db.url.is_empty() {
-                return Err(BackupError::Config(format!("Database {}: url cannot be empty", i)));
+                return Err(BackupError::Config(format!(
+                    "Database {}: url cannot be empty",
+                    i
+                )));
             }
             if db.container_name.is_empty() {
-                return Err(BackupError::Config(format!("Database {}: container_name cannot be empty", i)));
+                return Err(BackupError::Config(format!(
+                    "Database {}: container_name cannot be empty",
+                    i
+                )));
             }
             if db.master_password.is_empty() {
-                return Err(BackupError::Config(format!("Database {}: master_password cannot be empty", i)));
+                return Err(BackupError::Config(format!(
+                    "Database {}: master_password cannot be empty",
+                    i
+                )));
             }
             if !["zip", "dump"].contains(&db.backup_format.as_str()) {
-                return Err(BackupError::Config(format!("Database {}: backup_format must be 'zip' or 'dump'", i)));
+                return Err(BackupError::Config(format!(
+                    "Database {}: backup_format must be 'zip' or 'dump'",
+                    i
+                )));
             }
         }
 
@@ -106,7 +125,7 @@ mod tests {
     fn test_config_from_file_valid() {
         let temp_dir = tempdir().unwrap();
         let config_path = temp_dir.path().join("test_config.json");
-        
+
         let test_configs = create_test_configs();
         let json_content = serde_json::to_string_pretty(&test_configs).unwrap();
         fs::write(&config_path, json_content).unwrap();
@@ -147,8 +166,10 @@ mod tests {
     fn test_config_validation_missing_name() {
         let mut config = create_test_config();
         config.name = String::new();
-        let config = Config { databases: vec![config] };
-        
+        let config = Config {
+            databases: vec![config],
+        };
+
         let result = config.validate();
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), BackupError::Config(_)));
@@ -158,8 +179,10 @@ mod tests {
     fn test_config_validation_missing_database_name() {
         let mut config = create_test_config();
         config.database_name = String::new();
-        let config = Config { databases: vec![config] };
-        
+        let config = Config {
+            databases: vec![config],
+        };
+
         let result = config.validate();
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), BackupError::Config(_)));
@@ -169,8 +192,10 @@ mod tests {
     fn test_config_validation_missing_url() {
         let mut config = create_test_config();
         config.url = String::new();
-        let config = Config { databases: vec![config] };
-        
+        let config = Config {
+            databases: vec![config],
+        };
+
         let result = config.validate();
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), BackupError::Config(_)));
@@ -180,8 +205,10 @@ mod tests {
     fn test_config_validation_missing_container_name() {
         let mut config = create_test_config();
         config.container_name = String::new();
-        let config = Config { databases: vec![config] };
-        
+        let config = Config {
+            databases: vec![config],
+        };
+
         let result = config.validate();
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), BackupError::Config(_)));
@@ -191,8 +218,10 @@ mod tests {
     fn test_config_validation_missing_master_password() {
         let mut config = create_test_config();
         config.master_password = String::new();
-        let config = Config { databases: vec![config] };
-        
+        let config = Config {
+            databases: vec![config],
+        };
+
         let result = config.validate();
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), BackupError::Config(_)));
@@ -202,8 +231,10 @@ mod tests {
     fn test_config_validation_invalid_backup_format() {
         let mut config = create_test_config();
         config.backup_format = "invalid_format".to_string();
-        let config = Config { databases: vec![config] };
-        
+        let config = Config {
+            databases: vec![config],
+        };
+
         let result = config.validate();
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), BackupError::Config(_)));
@@ -213,8 +244,10 @@ mod tests {
     fn test_config_validation_valid_zip_format() {
         let mut config = create_test_config();
         config.backup_format = "zip".to_string();
-        let config = Config { databases: vec![config] };
-        
+        let config = Config {
+            databases: vec![config],
+        };
+
         let result = config.validate();
         assert!(result.is_ok());
     }
@@ -223,8 +256,10 @@ mod tests {
     fn test_config_validation_valid_dump_format() {
         let mut config = create_test_config();
         config.backup_format = "dump".to_string();
-        let config = Config { databases: vec![config] };
-        
+        let config = Config {
+            databases: vec![config],
+        };
+
         let result = config.validate();
         assert!(result.is_ok());
     }
@@ -233,7 +268,7 @@ mod tests {
     fn test_get_database_existing() {
         let configs = create_test_configs();
         let config = Config { databases: configs };
-        
+
         let found = config.get_database("Test Client");
         assert!(found.is_some());
         assert_eq!(found.unwrap().name, "Test Client");
@@ -243,7 +278,7 @@ mod tests {
     fn test_get_database_nonexistent() {
         let configs = create_test_configs();
         let config = Config { databases: configs };
-        
+
         let found = config.get_database("Nonexistent Client");
         assert!(found.is_none());
     }

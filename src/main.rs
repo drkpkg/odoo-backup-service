@@ -1,16 +1,16 @@
-use std::env;
-use log::{info, error, warn};
 use clap::Parser;
+use log::{error, info, warn};
+use std::env;
 
+mod backup;
 mod cli;
 mod config;
 mod docker;
-mod backup;
 mod error;
 
+use backup::BackupManager;
 use cli::{Cli, Commands};
 use config::Config;
-use backup::BackupManager;
 use docker::DockerManager;
 use error::Result;
 
@@ -19,11 +19,7 @@ async fn main() {
     let cli = Cli::parse();
 
     // Initialize logging
-    let log_level = if cli.verbose {
-        "debug"
-    } else {
-        "info"
-    };
+    let log_level = if cli.verbose { "debug" } else { "info" };
     env::set_var("RUST_LOG", log_level);
     env_logger::init();
 
@@ -38,7 +34,10 @@ async fn main() {
 async fn run(cli: Cli) -> Result<()> {
     // Load configuration
     let config = Config::from_file(&cli.config)?;
-    info!("Loaded configuration with {} databases", config.databases.len());
+    info!(
+        "Loaded configuration with {} databases",
+        config.databases.len()
+    );
 
     let backup_manager = BackupManager::new(cli.backup_dir.clone());
     let docker_manager = DockerManager::new();
@@ -60,13 +59,18 @@ async fn run(cli: Cli) -> Result<()> {
                     }
                 } else {
                     error!(" Client '{}' not found in configuration", client_name);
-                    return Err(error::BackupError::Config(format!("Client '{}' not found", client_name)));
+                    return Err(error::BackupError::Config(format!(
+                        "Client '{}' not found",
+                        client_name
+                    )));
                 }
             } else {
                 // Backup all clients
                 info!("Backing up all configured databases");
-                let results = backup_manager.backup_all_databases(&config.databases).await?;
-                
+                let results = backup_manager
+                    .backup_all_databases(&config.databases)
+                    .await?;
+
                 if results.is_empty() {
                     warn!("No backups were completed successfully");
                 } else {
@@ -90,13 +94,15 @@ async fn run(cli: Cli) -> Result<()> {
         Commands::Status => {
             println!("Docker container status:");
             let containers = docker_manager.list_containers().await?;
-            
+
             for db in &config.databases {
-                let is_running = docker_manager.is_container_running(&db.container_name).await?;
+                let is_running = docker_manager
+                    .is_container_running(&db.container_name)
+                    .await?;
                 let status = if is_running { "Running" } else { "Stopped" };
                 println!("  - {} ({}) - {}", db.name, db.container_name, status);
             }
-            
+
             if containers.is_empty() {
                 println!("  No containers are currently running");
             } else {
@@ -112,10 +118,16 @@ async fn run(cli: Cli) -> Result<()> {
                 if let Some(db_config) = config.get_database(&client_name) {
                     info!("Cleaning old backups for client: {}", client_name);
                     let deleted_count = backup_manager.cleanup_old_backups(db_config).await?;
-                    println!("Cleaned up {} old backup files for {}", deleted_count, client_name);
+                    println!(
+                        "Cleaned up {} old backup files for {}",
+                        deleted_count, client_name
+                    );
                 } else {
                     error!(" Client '{}' not found in configuration", client_name);
-                    return Err(error::BackupError::Config(format!("Client '{}' not found", client_name)));
+                    return Err(error::BackupError::Config(format!(
+                        "Client '{}' not found",
+                        client_name
+                    )));
                 }
             } else {
                 // Clean all clients
@@ -130,7 +142,7 @@ async fn run(cli: Cli) -> Result<()> {
         }
         Commands::ListBackups { database } => {
             let backups = backup_manager.list_backups(database.as_deref()).await?;
-            
+
             if backups.is_empty() {
                 println!("No backup files found");
             } else {

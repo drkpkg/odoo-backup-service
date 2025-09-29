@@ -43,20 +43,29 @@ mod tests {
     #[test]
     fn test_backup_error_display() {
         let config_error = BackupError::Config("Test config error".to_string());
-        assert_eq!(format!("{}", config_error), "Configuration error: Test config error");
+        assert_eq!(
+            format!("{}", config_error),
+            "Configuration error: Test config error"
+        );
 
         let docker_error = BackupError::Docker("Test docker error".to_string());
-        assert_eq!(format!("{}", docker_error), "Docker error: Test docker error");
+        assert_eq!(
+            format!("{}", docker_error),
+            "Docker error: Test docker error"
+        );
 
         let file_error = BackupError::FileSystem("Test file error".to_string());
-        assert_eq!(format!("{}", file_error), "File system error: Test file error");
+        assert_eq!(
+            format!("{}", file_error),
+            "File system error: Test file error"
+        );
     }
 
     #[test]
     fn test_backup_error_from_io_error() {
         let io_error = io::Error::new(io::ErrorKind::NotFound, "File not found");
         let backup_error: BackupError = io_error.into();
-        
+
         match backup_error {
             BackupError::Io(e) => {
                 assert_eq!(e.kind(), io::ErrorKind::NotFound);
@@ -70,7 +79,7 @@ mod tests {
     fn test_backup_error_from_json_error() {
         let json_error = serde_json::from_str::<serde_json::Value>("invalid json").unwrap_err();
         let backup_error: BackupError = json_error.into();
-        
+
         match backup_error {
             BackupError::Json(e) => {
                 assert!(e.to_string().contains("expected"));
@@ -84,7 +93,7 @@ mod tests {
         // Create a reqwest error by trying to connect to an invalid URL
         let reqwest_error = reqwest::get("http://[::1]:99999").await.unwrap_err();
         let backup_error: BackupError = reqwest_error.into();
-        
+
         match backup_error {
             BackupError::Http(e) => {
                 assert!(!e.to_string().is_empty());

@@ -63,7 +63,8 @@ mod tests {
 
     #[test]
     fn test_cli_parsing_backup_with_client() {
-        let cli = Cli::try_parse_from(&["odoo-backup", "backup", "--client", "Test Client"]).unwrap();
+        let cli =
+            Cli::try_parse_from(&["odoo-backup", "backup", "--client", "Test Client"]).unwrap();
         match cli.command {
             Commands::Backup { client } => {
                 assert_eq!(client, Some("Test Client".to_string()));
@@ -92,7 +93,8 @@ mod tests {
 
     #[test]
     fn test_cli_parsing_clean_with_client() {
-        let cli = Cli::try_parse_from(&["odoo-backup", "clean", "--client", "Test Client"]).unwrap();
+        let cli =
+            Cli::try_parse_from(&["odoo-backup", "clean", "--client", "Test Client"]).unwrap();
         match cli.command {
             Commands::Clean { client } => {
                 assert_eq!(client, Some("Test Client".to_string()));
@@ -104,12 +106,16 @@ mod tests {
     #[test]
     fn test_cli_parsing_list_backups_command() {
         let cli = Cli::try_parse_from(&["odoo-backup", "list-backups"]).unwrap();
-        assert!(matches!(cli.command, Commands::ListBackups { database: None }));
+        assert!(matches!(
+            cli.command,
+            Commands::ListBackups { database: None }
+        ));
     }
 
     #[test]
     fn test_cli_parsing_list_backups_with_database() {
-        let cli = Cli::try_parse_from(&["odoo-backup", "list-backups", "--database", "test_db"]).unwrap();
+        let cli =
+            Cli::try_parse_from(&["odoo-backup", "list-backups", "--database", "test_db"]).unwrap();
         match cli.command {
             Commands::ListBackups { database } => {
                 assert_eq!(database, Some("test_db".to_string()));
@@ -141,7 +147,16 @@ mod tests {
 
     #[test]
     fn test_cli_parsing_with_short_flags() {
-        let cli = Cli::try_parse_from(&["odoo-backup", "-c", "test.json", "-b", "/tmp", "-v", "backup"]).unwrap();
+        let cli = Cli::try_parse_from(&[
+            "odoo-backup",
+            "-c",
+            "test.json",
+            "-b",
+            "/tmp",
+            "-v",
+            "backup",
+        ])
+        .unwrap();
         assert_eq!(cli.config, "test.json");
         assert_eq!(cli.backup_dir, "/tmp");
         assert!(cli.verbose);
@@ -150,7 +165,16 @@ mod tests {
 
     #[test]
     fn test_cli_parsing_with_long_flags() {
-        let cli = Cli::try_parse_from(&["odoo-backup", "--config", "test.json", "--backup-dir", "/tmp", "--verbose", "backup"]).unwrap();
+        let cli = Cli::try_parse_from(&[
+            "odoo-backup",
+            "--config",
+            "test.json",
+            "--backup-dir",
+            "/tmp",
+            "--verbose",
+            "backup",
+        ])
+        .unwrap();
         assert_eq!(cli.config, "test.json");
         assert_eq!(cli.backup_dir, "/tmp");
         assert!(cli.verbose);
@@ -173,13 +197,19 @@ mod tests {
     fn test_commands_enum_variants() {
         // Test that all command variants can be created
         let _backup = Commands::Backup { client: None };
-        let _backup_with_client = Commands::Backup { client: Some("test".to_string()) };
+        let _backup_with_client = Commands::Backup {
+            client: Some("test".to_string()),
+        };
         let _list = Commands::List;
         let _status = Commands::Status;
         let _clean = Commands::Clean { client: None };
-        let _clean_with_client = Commands::Clean { client: Some("test".to_string()) };
+        let _clean_with_client = Commands::Clean {
+            client: Some("test".to_string()),
+        };
         let _list_backups = Commands::ListBackups { database: None };
-        let _list_backups_with_db = Commands::ListBackups { database: Some("test".to_string()) };
+        let _list_backups_with_db = Commands::ListBackups {
+            database: Some("test".to_string()),
+        };
     }
 
     #[test]

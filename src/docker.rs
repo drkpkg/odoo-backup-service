@@ -1,6 +1,6 @@
-use std::process::{Command};
-use crate::error::{BackupError, Result};
 use crate::config::DatabaseConfig;
+use crate::error::{BackupError, Result};
+use std::process::Command;
 
 pub struct DockerManager;
 
@@ -17,12 +17,21 @@ impl DockerManager {
 
     pub async fn is_container_running(&self, container_name: &str) -> Result<bool> {
         let output = Command::new("docker")
-            .args(["ps", "--filter", &format!("name={}", container_name), "--format", "{{.Names}}"])
+            .args([
+                "ps",
+                "--filter",
+                &format!("name={}", container_name),
+                "--format",
+                "{{.Names}}",
+            ])
             .output()
             .map_err(|e| BackupError::Docker(format!("Failed to check container status: {}", e)))?;
 
         if !output.status.success() {
-            return Err(BackupError::Docker(format!("Docker command failed: {}", String::from_utf8_lossy(&output.stderr))));
+            return Err(BackupError::Docker(format!(
+                "Docker command failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )));
         }
 
         let running_containers = String::from_utf8_lossy(&output.stdout);
@@ -32,12 +41,18 @@ impl DockerManager {
     pub async fn execute_backup(&self, config: &DatabaseConfig) -> Result<String> {
         // Check if container is running
         if !self.is_container_running(&config.container_name).await? {
-            return Err(BackupError::Docker(format!("Container '{}' is not running", config.container_name)));
+            return Err(BackupError::Docker(format!(
+                "Container '{}' is not running",
+                config.container_name
+            )));
         }
 
         // Generate backup filename with timestamp
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-        let backup_filename = format!("backup_{}_{}.{}", config.database_name, timestamp, config.backup_format);
+        let backup_filename = format!(
+            "backup_{}_{}.{}",
+            config.database_name, timestamp, config.backup_format
+        );
         let container_backup_path = format!("{}/{}", config.output_path, backup_filename);
 
         // Create the curl command to execute inside the container
@@ -50,7 +65,11 @@ impl DockerManager {
             container_backup_path
         );
 
-        log::info!("Executing backup for {} in container {}", config.name, config.container_name);
+        log::info!(
+            "Executing backup for {} in container {}",
+            config.name,
+            config.container_name
+        );
 
         // Execute the curl command inside the container
         let output = Command::new("docker")
@@ -60,7 +79,10 @@ impl DockerManager {
 
         if !output.status.success() {
             let error_msg = String::from_utf8_lossy(&output.stderr);
-            return Err(BackupError::Docker(format!("Backup command failed: {}", error_msg)));
+            return Err(BackupError::Docker(format!(
+                "Backup command failed: {}",
+                error_msg
+            )));
         }
 
         // Check if backup file was created
@@ -71,34 +93,60 @@ impl DockerManager {
             .map_err(|e| BackupError::Docker(format!("Failed to check backup file: {}", e)))?;
 
         if !check_output.status.success() {
-            return Err(BackupError::Docker(format!("Backup file was not created: {}", container_backup_path)));
+            return Err(BackupError::Docker(format!(
+                "Backup file was not created: {}",
+                container_backup_path
+            )));
         }
 
         log::info!("Backup created successfully: {}", container_backup_path);
         Ok(container_backup_path)
     }
 
-    pub async fn copy_backup_to_host(&self, config: &DatabaseConfig, container_path: &str, host_path: &str) -> Result<String> {
-        let host_backup_path = format!("{}/{}", host_path, 
-            container_path.split('/').next_back().unwrap_or("backup"));
+    pub async fn copy_backup_to_host(
+        &self,
+        config: &DatabaseConfig,
+        container_path: &str,
+        host_path: &str,
+    ) -> Result<String> {
+        let host_backup_path = format!(
+            "{}/{}",
+            host_path,
+            container_path.split('/').next_back().unwrap_or("backup")
+        );
 
-        log::info!("Copying backup from container to host: {} -> {}", container_path, host_backup_path);
+        log::info!(
+            "Copying backup from container to host: {} -> {}",
+            container_path,
+            host_backup_path
+        );
 
         let output = Command::new("docker")
-            .args(["cp", &format!("{}:{}", config.container_name, container_path), &host_backup_path])
+            .args([
+                "cp",
+                &format!("{}:{}", config.container_name, container_path),
+                &host_backup_path,
+            ])
             .output()
             .map_err(|e| BackupError::Docker(format!("Failed to copy backup file: {}", e)))?;
 
         if !output.status.success() {
             let error_msg = String::from_utf8_lossy(&output.stderr);
-            return Err(BackupError::Docker(format!("Failed to copy backup: {}", error_msg)));
+            return Err(BackupError::Docker(format!(
+                "Failed to copy backup: {}",
+                error_msg
+            )));
         }
 
         log::info!("Backup copied successfully to: {}", host_backup_path);
         Ok(host_backup_path)
     }
 
-    pub async fn cleanup_container_backup(&self, config: &DatabaseConfig, container_path: &str) -> Result<()> {
+    pub async fn cleanup_container_backup(
+        &self,
+        config: &DatabaseConfig,
+        container_path: &str,
+    ) -> Result<()> {
         log::info!("Cleaning up backup file in container: {}", container_path);
 
         let output = Command::new("docker")
@@ -124,7 +172,10 @@ impl DockerManager {
 
         if !output.status.success() {
             let error_msg = String::from_utf8_lossy(&output.stderr);
-            return Err(BackupError::Docker(format!("Failed to list containers: {}", error_msg)));
+            return Err(BackupError::Docker(format!(
+                "Failed to list containers: {}",
+                error_msg
+            )));
         }
 
         let containers: Vec<String> = String::from_utf8_lossy(&output.stdout)
@@ -185,9 +236,12 @@ mod tests {
     fn test_backup_command_construction() {
         let config = create_test_database_config();
         let timestamp = "20240101_120000";
-        let backup_filename = format!("backup_{}_{}.{}", config.database_name, timestamp, config.backup_format);
+        let backup_filename = format!(
+            "backup_{}_{}.{}",
+            config.database_name, timestamp, config.backup_format
+        );
         let container_backup_path = format!("{}/{}", config.output_path, backup_filename);
-        
+
         let expected_curl_command = format!(
             "curl -X POST -F 'master_pwd={}' -F 'name={}' -F 'backup_format={}' {} -o {}",
             config.master_password,
@@ -210,8 +264,11 @@ mod tests {
     fn test_backup_filename_generation() {
         let config = create_test_database_config();
         let timestamp = "20240101_120000";
-        let backup_filename = format!("backup_{}_{}.{}", config.database_name, timestamp, config.backup_format);
-        
+        let backup_filename = format!(
+            "backup_{}_{}.{}",
+            config.database_name, timestamp, config.backup_format
+        );
+
         assert_eq!(backup_filename, "backup_test_database_20240101_120000.zip");
         assert!(backup_filename.contains(&config.database_name));
         assert!(backup_filename.contains(&config.backup_format));
@@ -222,27 +279,36 @@ mod tests {
         let config = create_test_database_config();
         let backup_filename = "backup_test_database_20240101_120000.zip";
         let container_backup_path = format!("{}/{}", config.output_path, backup_filename);
-        
-        assert_eq!(container_backup_path, "/tmp/backups/backup_test_database_20240101_120000.zip");
+
+        assert_eq!(
+            container_backup_path,
+            "/tmp/backups/backup_test_database_20240101_120000.zip"
+        );
     }
 
     #[test]
     fn test_host_backup_path_construction() {
         let container_path = "/tmp/backups/backup_test_database_20240101_120000.zip";
         let host_path = "./backups";
-        let host_backup_path = format!("{}/{}", host_path, 
-            container_path.split('/').next_back().unwrap_or("backup"));
-        
-        assert_eq!(host_backup_path, "./backups/backup_test_database_20240101_120000.zip");
+        let host_backup_path = format!(
+            "{}/{}",
+            host_path,
+            container_path.split('/').next_back().unwrap_or("backup")
+        );
+
+        assert_eq!(
+            host_backup_path,
+            "./backups/backup_test_database_20240101_120000.zip"
+        );
     }
 
     #[test]
     fn test_docker_command_arguments() {
         let container_name = "test_container";
         let curl_command = "curl -X POST -F 'master_pwd=admin' -F 'name=test_db' -F 'backup_format=zip' http://localhost:8069/web/database/backup -o /tmp/backup.zip";
-        
+
         let expected_args = vec!["exec", container_name, "sh", "-c", curl_command];
-        
+
         // Test that the argument construction is correct
         assert_eq!(expected_args[0], "exec");
         assert_eq!(expected_args[1], container_name);
@@ -256,10 +322,10 @@ mod tests {
         let container_name = "test_container";
         let container_path = "/tmp/backups/backup.zip";
         let host_path = "./backups/backup.zip";
-        
+
         let container_source = format!("{}:{}", container_name, container_path);
         let expected_args = vec!["cp", &container_source, host_path];
-        
+
         assert_eq!(expected_args[0], "cp");
         assert_eq!(expected_args[1], "test_container:/tmp/backups/backup.zip");
         assert_eq!(expected_args[2], "./backups/backup.zip");
@@ -269,9 +335,9 @@ mod tests {
     fn test_docker_rm_command_construction() {
         let container_name = "test_container";
         let file_path = "/tmp/backups/backup.zip";
-        
+
         let expected_args = vec!["exec", container_name, "rm", "-f", file_path];
-        
+
         assert_eq!(expected_args[0], "exec");
         assert_eq!(expected_args[1], container_name);
         assert_eq!(expected_args[2], "rm");
