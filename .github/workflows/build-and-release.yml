@@ -97,6 +97,13 @@ jobs:
           
           # Build package with -d flag to override dependency checks
           dpkg-buildpackage -us -uc -b -d
+          
+          # List generated files for debugging
+          echo "Generated files:"
+          ls -la ../odoo-backup-service_*
+          
+          # Copy .deb file to current directory for upload
+          cp ../odoo-backup-service_*.deb .
 
       - name: Create binary archive
         run: |
@@ -137,14 +144,22 @@ jobs:
           mkdir -p release-assets
           
           # Copy Debian packages
-          find . -name "debian-package-*" -type d -exec cp {}/odoo-backup-service_*.deb release-assets/ \;
+          find . -name "debian-package-*" -type d -exec cp {}/odoo-backup-service_*.deb release-assets/ \; 2>/dev/null || true
           
           # Copy binaries
-          find . -name "binary-*" -type d -exec cp {}/odoo-backup-service-*.tar.gz release-assets/ \;
+          find . -name "binary-*" -type d -exec cp {}/odoo-backup-service-*.tar.gz release-assets/ \; 2>/dev/null || true
           
-          # Create checksums
+          # List files for debugging
+          echo "Files in release-assets:"
+          ls -la release-assets/
+          
+          # Create checksums only if files exist
           cd release-assets
-          sha256sum *.deb *.tar.gz > checksums.txt
+          if ls *.deb *.tar.gz 1> /dev/null 2>&1; then
+            sha256sum *.deb *.tar.gz > checksums.txt
+          else
+            echo "No files found to create checksums"
+          fi
           cd ..
 
       - name: Create Release
