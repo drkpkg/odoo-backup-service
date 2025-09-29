@@ -106,7 +106,7 @@ release-archive: build
 	@echo "Creating release archive..."
 	mkdir -p release
 	cp target/release/odoo-backup-service release/odoo-backup
-	cp README.md INSTALL.md TESTING.md release/
+	cp README.md release/
 	cp config.json.example release/
 	tar -czf odoo-backup-service-$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m).tar.gz -C release .
 	rm -rf release

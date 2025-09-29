@@ -15,5 +15,3 @@ override_dh_auto_install:
 	install -d -m 755 debian/odoo-backup-service/var/backups/odoo
 	# Install documentation
 	install -D -m 644 README.md debian/odoo-backup-service/usr/share/doc/odoo-backup-service/README.md
-	install -D -m 644 INSTALL.md debian/odoo-backup-service/usr/share/doc/odoo-backup-service/INSTALL.md
-	install -D -m 644 TESTING.md debian/odoo-backup-service/usr/share/doc/odoo-backup-service/TESTING.md

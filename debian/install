@@ -1,5 +1,3 @@
 odoo-backup-service usr/bin/
 config.json.example etc/odoo-backup/
 README.md usr/share/doc/odoo-backup-service/
-INSTALL.md usr/share/doc/odoo-backup-service/
-TESTING.md usr/share/doc/odoo-backup-service/
