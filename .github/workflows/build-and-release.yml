@@ -80,19 +80,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libssl-dev devscripts debhelper
-          # Install Rust via rustup for system-wide availability
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          source $HOME/.cargo/env
 
       - name: Build application
-        run: |
-          source $HOME/.cargo/env
-          cargo build --release
+        run: cargo build --release
 
       - name: Build Debian package
         run: |
-          source $HOME/.cargo/env
           # Update changelog with current version
           VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
           sed -i "s/0.1.0-1/$VERSION-1/" debian/changelog
