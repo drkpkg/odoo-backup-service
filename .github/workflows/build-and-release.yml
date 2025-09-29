@@ -11,6 +11,10 @@ on:
         required: true
         default: 'v0.1.0'
 
+permissions:
+  contents: write
+  packages: write
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -138,8 +142,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create tag for manual release
+      - name: Prepare version for release
         if: github.event_name == 'workflow_dispatch'
+        id: version
         run: |
           VERSION="${{ github.event.inputs.version }}"
           if [ -z "$VERSION" ]; then
@@ -147,11 +152,8 @@ jobs:
           fi
           # Remove 'v' prefix if present
           VERSION=${VERSION#v}
-          echo "Creating tag v$VERSION"
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git tag -a "v$VERSION" -m "Release v$VERSION"
-          git push origin "v$VERSION"
+          echo "version=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: v$VERSION"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -182,10 +184,11 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name || format('v{0}', github.event.inputs.version) }}
+          tag_name: ${{ github.ref_name || steps.version.outputs.version }}
           files: release-assets/*
           generate_release_notes: true
           draft: false
           prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
