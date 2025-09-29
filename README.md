@@ -35,6 +35,21 @@ This will install:
 - Configuration: `/etc/odoo-backup/config.json`
 - Backup directory: `/var/backups/odoo` (default)
 
+### Pre-built Packages
+
+Download pre-built packages for your distribution:
+
+- **Ubuntu 22.04 (Jammy)**: `odoo-backup-service_*.deb`
+- **Ubuntu 24.04 (Noble)**: `odoo-backup-service_*.deb`
+- **Debian 12 (Bookworm)**: `odoo-backup-service_*.deb`
+- **Binary Archives**: `odoo-backup-service-*-amd64.tar.gz`
+
+Install from .deb package:
+```bash
+sudo dpkg -i odoo-backup-service_*.deb
+sudo apt-get install -f  # Fix dependencies if needed
+```
+
 ### Development Installation
 
 For development or local testing:

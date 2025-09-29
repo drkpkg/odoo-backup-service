@@ -82,16 +82,49 @@ status:
 run: install
 	$(BINARY_NAME) --config $(INSTALL_CONFIG_FILE) list
 
+# Build Debian package
+.PHONY: deb
+deb: build
+	@echo "Building Debian package..."
+	dpkg-buildpackage -us -uc -b
+	@echo "Debian package built successfully!"
+
+# Clean Debian build artifacts
+.PHONY: clean-deb
+clean-deb:
+	@echo "Cleaning Debian build artifacts..."
+	rm -f ../odoo-backup-service_*.deb
+	rm -f ../odoo-backup-service_*.dsc
+	rm -f ../odoo-backup-service_*.tar.gz
+	rm -f ../odoo-backup-service_*.changes
+	rm -f ../odoo-backup-service_*.buildinfo
+	@echo "Debian build artifacts cleaned!"
+
+# Create release archive
+.PHONY: release-archive
+release-archive: build
+	@echo "Creating release archive..."
+	mkdir -p release
+	cp target/release/odoo-backup-service release/odoo-backup
+	cp README.md INSTALL.md TESTING.md release/
+	cp config.json.example release/
+	tar -czf odoo-backup-service-$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m).tar.gz -C release .
+	rm -rf release
+	@echo "Release archive created successfully!"
+
 # Show help
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  build     - Build the application (release mode)"
-	@echo "  dev       - Build the application (debug mode)"
-	@echo "  test      - Run all tests"
-	@echo "  clean     - Clean build artifacts"
-	@echo "  install   - Install the application to system"
-	@echo "  uninstall - Remove the application from system"
-	@echo "  status    - Show installation status"
-	@echo "  run       - Install and run the application"
-	@echo "  help      - Show this help message"
+	@echo "  build          - Build the application (release mode)"
+	@echo "  dev            - Build the application (debug mode)"
+	@echo "  test           - Run all tests"
+	@echo "  clean          - Clean build artifacts"
+	@echo "  install        - Install the application to system"
+	@echo "  uninstall      - Remove the application from system"
+	@echo "  status         - Show installation status"
+	@echo "  run            - Install and run the application"
+	@echo "  deb            - Build Debian package"
+	@echo "  clean-deb      - Clean Debian build artifacts"
+	@echo "  release-archive - Create release archive"
+	@echo "  help           - Show this help message"

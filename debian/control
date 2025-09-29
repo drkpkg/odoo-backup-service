@@ -1,0 +1,26 @@
+Source: odoo-backup-service
+Section: utils
+Priority: optional
+Maintainer: Felix Daniel Coca Calvimontes <daniel.uremix@gmail.com>
+Build-Depends: debhelper-compat (= 13), cargo, rustc
+Standards-Version: 4.6.2
+Homepage: https://github.com/daniel-uremix/odoo-backup-service
+Vcs-Git: https://github.com/daniel-uremix/odoo-backup-service.git
+Vcs-Browser: https://github.com/daniel-uremix/odoo-backup-service
+
+Package: odoo-backup-service
+Architecture: amd64
+Depends: ${misc:Depends}, docker.io | docker-ce, curl
+Description: Automated Odoo database backup service for Docker containers
+ A Rust CLI application to automate Odoo database backups inside Docker
+ containers. This tool replaces the manual process of running docker
+ compose exec commands by providing a streamlined interface for managing
+ multiple Odoo database backups.
+ .
+ Features:
+  - Docker Integration: Execute backups directly inside Odoo containers
+  - Multi-Database Support: Configure and backup multiple databases
+  - Automated Cleanup: Automatic cleanup of old backup files
+  - Status Monitoring: Check container status and backup history
+  - Error Handling: Comprehensive error handling with detailed logging
+  - Performance: Built with Rust for fast and reliable execution
