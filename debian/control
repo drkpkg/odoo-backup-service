@@ -2,7 +2,7 @@ Source: odoo-backup-service
 Section: utils
 Priority: optional
 Maintainer: Felix Daniel Coca Calvimontes <daniel.uremix@gmail.com>
-Build-Depends: debhelper-compat (= 13), cargo, rustc
+Build-Depends: debhelper-compat (= 13), build-essential, pkg-config, libssl-dev
 Standards-Version: 4.6.2
 Homepage: https://github.com/daniel-uremix/odoo-backup-service
 Vcs-Git: https://github.com/daniel-uremix/odoo-backup-service.git
