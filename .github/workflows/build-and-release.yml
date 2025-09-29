@@ -90,6 +90,11 @@ jobs:
           VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
           sed -i "s/0.1.0-1/$VERSION-1/" debian/changelog
           
+          # Ensure Rust environment is available for the build
+          export PATH="$HOME/.cargo/bin:$PATH"
+          export CARGO_HOME="$HOME/.cargo"
+          export RUSTUP_HOME="$HOME/.rustup"
+          
           # Build package with -d flag to override dependency checks
           dpkg-buildpackage -us -uc -b -d
 
