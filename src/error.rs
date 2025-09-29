@@ -9,12 +9,14 @@ pub enum BackupError {
     Docker(String),
 
     #[error("Network error: {0}")]
+    #[allow(dead_code)]
     Network(String),
 
     #[error("File system error: {0}")]
     FileSystem(String),
 
     #[error("Odoo API error: {0}")]
+    #[allow(dead_code)]
     OdooApi(String),
 
     #[error("IO error: {0}")]
@@ -27,6 +29,7 @@ pub enum BackupError {
     Http(#[from] reqwest::Error),
 
     #[error("Unknown error: {0}")]
+    #[allow(dead_code)]
     Unknown(String),
 }
 
