@@ -111,7 +111,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: debian-package-${{ matrix.distro }}
-          path: ../odoo-backup-service_*.deb
+          path: odoo-backup-service_*.deb
 
       - name: Upload binary archive
         uses: actions/upload-artifact@v4
