@@ -1,0 +1,22 @@
+[
+    {
+        "name": "Production Database",
+        "database_name": "prod_database",
+        "url": "http://localhost:8069",
+        "container_name": "odoo_prod_container",
+        "master_password": "your_master_password_here",
+        "backup_format": "zip",
+        "output_path": "/tmp/backups",
+        "retention_days": 30
+    },
+    {
+        "name": "Staging Database",
+        "database_name": "staging_database",
+        "url": "http://localhost:8069",
+        "container_name": "odoo_staging_container",
+        "master_password": "your_master_password_here",
+        "backup_format": "zip",
+        "output_path": "/tmp/backups",
+        "retention_days": 7
+    }
+]
