@@ -4,6 +4,12 @@ use crate::config::DatabaseConfig;
 
 pub struct DockerManager;
 
+impl Default for DockerManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DockerManager {
     pub fn new() -> Self {
         Self
@@ -11,7 +17,7 @@ impl DockerManager {
 
     pub async fn is_container_running(&self, container_name: &str) -> Result<bool> {
         let output = Command::new("docker")
-            .args(&["ps", "--filter", &format!("name={}", container_name), "--format", "{{.Names}}"])
+            .args(["ps", "--filter", &format!("name={}", container_name), "--format", "{{.Names}}"])
             .output()
             .map_err(|e| BackupError::Docker(format!("Failed to check container status: {}", e)))?;
 
@@ -36,11 +42,11 @@ impl DockerManager {
 
         // Create the curl command to execute inside the container
         let curl_command = format!(
-            "curl -X POST -F 'master_pwd={}' -F 'name={}' -F 'backup_format={}' {} -o {}",
+            "curl -X POST -F 'master_pwd={}' -F 'name={}' -F 'backup_format={}' {}/web/database/backup -o {}",
             config.master_password,
             config.database_name,
             config.backup_format,
-            format!("{}/web/database/backup", config.url),
+            config.url,
             container_backup_path
         );
 
@@ -48,7 +54,7 @@ impl DockerManager {
 
         // Execute the curl command inside the container
         let output = Command::new("docker")
-            .args(&["exec", &config.container_name, "sh", "-c", &curl_command])
+            .args(["exec", &config.container_name, "sh", "-c", &curl_command])
             .output()
             .map_err(|e| BackupError::Docker(format!("Failed to execute backup command: {}", e)))?;
 
@@ -60,7 +66,7 @@ impl DockerManager {
         // Check if backup file was created
         let check_command = format!("test -f {}", container_backup_path);
         let check_output = Command::new("docker")
-            .args(&["exec", &config.container_name, "sh", "-c", &check_command])
+            .args(["exec", &config.container_name, "sh", "-c", &check_command])
             .output()
             .map_err(|e| BackupError::Docker(format!("Failed to check backup file: {}", e)))?;
 
@@ -74,12 +80,12 @@ impl DockerManager {
 
     pub async fn copy_backup_to_host(&self, config: &DatabaseConfig, container_path: &str, host_path: &str) -> Result<String> {
         let host_backup_path = format!("{}/{}", host_path, 
-            container_path.split('/').last().unwrap_or("backup"));
+            container_path.split('/').next_back().unwrap_or("backup"));
 
         log::info!("Copying backup from container to host: {} -> {}", container_path, host_backup_path);
 
         let output = Command::new("docker")
-            .args(&["cp", &format!("{}:{}", config.container_name, container_path), &host_backup_path])
+            .args(["cp", &format!("{}:{}", config.container_name, container_path), &host_backup_path])
             .output()
             .map_err(|e| BackupError::Docker(format!("Failed to copy backup file: {}", e)))?;
 
@@ -96,7 +102,7 @@ impl DockerManager {
         log::info!("Cleaning up backup file in container: {}", container_path);
 
         let output = Command::new("docker")
-            .args(&["exec", &config.container_name, "rm", "-f", container_path])
+            .args(["exec", &config.container_name, "rm", "-f", container_path])
             .output()
             .map_err(|e| BackupError::Docker(format!("Failed to cleanup backup file: {}", e)))?;
 
@@ -112,7 +118,7 @@ impl DockerManager {
 
     pub async fn list_containers(&self) -> Result<Vec<String>> {
         let output = Command::new("docker")
-            .args(&["ps", "--format", "{{.Names}}"])
+            .args(["ps", "--format", "{{.Names}}"])
             .output()
             .map_err(|e| BackupError::Docker(format!("Failed to list containers: {}", e)))?;
 
@@ -225,7 +231,7 @@ mod tests {
         let container_path = "/tmp/backups/backup_test_database_20240101_120000.zip";
         let host_path = "./backups";
         let host_backup_path = format!("{}/{}", host_path, 
-            container_path.split('/').last().unwrap_or("backup"));
+            container_path.split('/').next_back().unwrap_or("backup"));
         
         assert_eq!(host_backup_path, "./backups/backup_test_database_20240101_120000.zip");
     }
