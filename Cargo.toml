@@ -1,6 +1,6 @@
 [package]
 name = "odoo-backup-service"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Daniel <daniel.uremix@gmail.com>"]
 description = "A Rust CLI application to automate Odoo backups inside Docker containers"
