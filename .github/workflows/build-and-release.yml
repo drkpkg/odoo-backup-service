@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       version:
@@ -20,9 +22,79 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  version-bump:
+    name: Version Bump
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Get current version
+        id: current_version
+        run: |
+          CURRENT_VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if version bump is needed
+        id: version_check
+        run: |
+          CURRENT_VERSION="${{ steps.current_version.outputs.current }}"
+          
+          # Get the latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          LATEST_VERSION=${LATEST_TAG#v}
+          
+          echo "Current Cargo.toml version: $CURRENT_VERSION"
+          echo "Latest tag version: $LATEST_VERSION"
+          
+          # Compare versions and bump patch version
+          if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+            echo "Versions don't match, bumping to: $CURRENT_VERSION"
+            NEW_VERSION="$CURRENT_VERSION"
+          else
+            # Bump patch version
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+            NEW_PATCH=$((PATCH + 1))
+            NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+            
+            # Update Cargo.toml
+            sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" Cargo.toml
+            
+            # Update debian/changelog
+            sed -i "s/^odoo-backup-service (.*)/odoo-backup-service ($NEW_VERSION-1)/" debian/changelog
+            
+            echo "Version bumped from $CURRENT_VERSION to $NEW_VERSION"
+          fi
+          
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        if: steps.version_check.outputs.version != steps.current_version.outputs.current
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add Cargo.toml debian/changelog
+          git commit -m "Bump version to ${{ steps.version_check.outputs.version }} [skip ci]"
+          git push
+
+      - name: Create and push tag
+        if: steps.version_check.outputs.version != steps.current_version.outputs.current
+        run: |
+          git tag ${{ steps.version_check.outputs.tag }}
+          git push origin ${{ steps.version_check.outputs.tag }}
   test:
     name: Test
     runs-on: ubuntu-latest
+    needs: [version-bump]
+    if: always() && (needs.version-bump.result == 'success' || needs.version-bump.result == 'skipped')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,7 +124,8 @@ jobs:
 
   build-packages:
     name: Build Packages
-    needs: test
+    needs: [version-bump, test]
+    if: always() && (needs.version-bump.result == 'success' || needs.version-bump.result == 'skipped') && needs.test.result == 'success'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -132,9 +205,9 @@ jobs:
 
   release:
     name: Create Release
-    needs: build-packages
+    needs: [version-bump, build-packages]
+    if: always() && (needs.version-bump.result == 'success' || needs.version-bump.result == 'skipped') && needs.build-packages.result == 'success'
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     
     steps:
       - name: Checkout code
@@ -143,17 +216,27 @@ jobs:
           fetch-depth: 0
 
       - name: Prepare version for release
-        if: github.event_name == 'workflow_dispatch'
         id: version
         run: |
-          VERSION="${{ github.event.inputs.version }}"
-          if [ -z "$VERSION" ]; then
-            VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          # Use version from version-bump job if available, otherwise use manual input or current version
+          if [ -n "${{ needs.version-bump.outputs.tag }}" ]; then
+            VERSION="${{ needs.version-bump.outputs.tag }}"
+            echo "Using version from version-bump: $VERSION"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            if [ -z "$VERSION" ]; then
+              VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+            fi
+            # Remove 'v' prefix if present
+            VERSION=${VERSION#v}
+            VERSION="v$VERSION"
+            echo "Using manual version: $VERSION"
+          else
+            # Extract version from tag
+            VERSION="${{ github.ref_name }}"
+            echo "Using tag version: $VERSION"
           fi
-          # Remove 'v' prefix if present
-          VERSION=${VERSION#v}
-          echo "version=v$VERSION" >> $GITHUB_OUTPUT
-          echo "Using version: v$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -184,7 +267,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name || steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
           files: release-assets/*
           generate_release_notes: true
           draft: false
