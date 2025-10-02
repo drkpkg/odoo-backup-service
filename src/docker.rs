@@ -60,7 +60,9 @@ impl DockerManager {
         let mkdir_output = Command::new("docker")
             .args(["exec", &config.container_name, "sh", "-c", &mkdir_command])
             .output()
-            .map_err(|e| BackupError::Docker(format!("Failed to create backup directory: {}", e)))?;
+            .map_err(|e| {
+                BackupError::Docker(format!("Failed to create backup directory: {}", e))
+            })?;
 
         if !mkdir_output.status.success() {
             let error_msg = String::from_utf8_lossy(&mkdir_output.stderr);
