@@ -168,14 +168,8 @@ jobs:
         with:
           docker-image: ${{ matrix.docker-image }}
           buildpackage-opts: --build=binary --no-sign
-          extra-build-deps: curl build-essential pkg-config libssl-dev
+          extra-build-deps: rustc cargo build-essential pkg-config libssl-dev
           before-build-hook: |
-            # Install Rust with proper SSL handling
-            curl --proto '=https' --tlsv1.2 --insecure -sSf https://sh.rustup.rs | sh -s -- -y
-            export PATH="$HOME/.cargo/bin:$PATH"
-            export CARGO_HOME="$HOME/.cargo"
-            export RUSTUP_HOME="$HOME/.rustup"
-            
             # Build the Rust application
             cargo build --release
             
