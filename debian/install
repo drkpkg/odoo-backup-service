@@ -1,3 +1,1 @@
-target/release/odoo-backup-service usr/bin/odoo-backup
-config.json.example etc/odoo-backup/
-README.md usr/share/doc/odoo-backup-service/
+# All files are installed via debian/rules override_dh_auto_install

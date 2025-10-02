@@ -27,3 +27,20 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+*.deb
+
+# Debian package build artifacts
+/debian/.debhelper/
+/debian/debhelper-build-stamp
+/debian/files
+/debian/*.substvars
+/debian/*/
+*.dsc
+*.tar.gz
+*.changes
+*.buildinfo
+*.deb
+
+# Release archives
+*.tar.gz
+/release/

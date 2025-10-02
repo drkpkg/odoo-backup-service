@@ -192,10 +192,21 @@ jobs:
           rm -rf release
 
       - name: Upload Debian package
+        run: |
+          echo "Current directory contents:"
+          ls -la
+          echo "Looking for .deb files:"
+          ls -la *.deb || echo "No .deb files found in current directory"
+          echo "Looking in parent directory:"
+          ls -la ../*.deb || echo "No .deb files found in parent directory"
+        continue-on-error: true
+
+      - name: Upload Debian package
         uses: actions/upload-artifact@v4
         with:
           name: debian-package-${{ matrix.distro }}
           path: odoo-backup-service_*.deb
+          if-no-files-found: warn
 
       - name: Upload binary archive
         uses: actions/upload-artifact@v4
@@ -245,10 +256,26 @@ jobs:
         run: |
           mkdir -p release-assets
           
+          # Debug: List all downloaded artifacts
+          echo "All downloaded artifacts:"
+          find . -type d -name "*package*" -o -name "*binary*" | head -20
+          
+          # Debug: List all .deb files
+          echo "All .deb files found:"
+          find . -name "*.deb" -type f
+          
+          # Debug: List all .tar.gz files
+          echo "All .tar.gz files found:"
+          find . -name "*.tar.gz" -type f
+          
           # Copy Debian packages
+          echo "Copying Debian packages..."
+          find . -name "debian-package-*" -type d -exec sh -c 'echo "Found directory: $1"; ls -la "$1" || true' _ {} \;
           find . -name "debian-package-*" -type d -exec cp {}/odoo-backup-service_*.deb release-assets/ \; 2>/dev/null || true
           
           # Copy binaries
+          echo "Copying binary archives..."
+          find . -name "binary-*" -type d -exec sh -c 'echo "Found directory: $1"; ls -la "$1" || true' _ {} \;
           find . -name "binary-*" -type d -exec cp {}/odoo-backup-service-*.tar.gz release-assets/ \; 2>/dev/null || true
           
           # List files for debugging
@@ -259,6 +286,8 @@ jobs:
           cd release-assets
           if ls *.deb *.tar.gz 1> /dev/null 2>&1; then
             sha256sum *.deb *.tar.gz > checksums.txt
+            echo "Created checksums.txt:"
+            cat checksums.txt
           else
             echo "No files found to create checksums"
           fi

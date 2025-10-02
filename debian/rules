@@ -7,5 +7,15 @@ override_dh_auto_build:
 	cargo build --release
 
 override_dh_auto_install:
-	# Create backup directory
+	# Create directories
+	install -d -m 755 debian/odoo-backup-service/usr/bin
+	install -d -m 755 debian/odoo-backup-service/etc/odoo-backup
+	install -d -m 755 debian/odoo-backup-service/usr/share/doc/odoo-backup-service
 	install -d -m 755 debian/odoo-backup-service/var/backups/odoo
+	
+	# Install binary with proper permissions
+	install -m 755 target/release/odoo-backup-service debian/odoo-backup-service/usr/bin/odoo-backup
+	# Install configuration file
+	install -m 644 config.json.example debian/odoo-backup-service/etc/odoo-backup/config.json
+	# Install documentation
+	install -m 644 README.md debian/odoo-backup-service/usr/share/doc/odoo-backup-service/README.md

@@ -88,8 +88,23 @@ deb: build
 	@echo "Building Debian package..."
 	dpkg-buildpackage -us -uc -b
 	@echo "Debian package built successfully!"
+	@$(MAKE) post-build
 
-# Clean Debian build artifacts
+# Post-build cleanup - removes temporary Debian build artifacts
+.PHONY: post-build
+post-build:
+	@echo "Running post-build cleanup..."
+	@rm -rf debian/.debhelper/ 2>/dev/null || true
+	@rm -f debian/debhelper-build-stamp 2>/dev/null || true
+	@rm -f debian/files 2>/dev/null || true
+	@rm -f debian/*.substvars 2>/dev/null || true
+	@rm -rf debian/odoo-backup-service/ 2>/dev/null || true
+	@rm -rf usr/ 2>/dev/null || true
+	@rm -rf etc/ 2>/dev/null || true
+	@rm -rf var/ 2>/dev/null || true
+	@echo "Post-build cleanup completed!"
+
+# Clean Debian build artifacts (including parent directory)
 .PHONY: clean-deb
 clean-deb:
 	@echo "Cleaning Debian build artifacts..."
@@ -98,7 +113,14 @@ clean-deb:
 	rm -f ../odoo-backup-service_*.tar.gz
 	rm -f ../odoo-backup-service_*.changes
 	rm -f ../odoo-backup-service_*.buildinfo
+	rm -f *.deb
+	@$(MAKE) post-build
 	@echo "Debian build artifacts cleaned!"
+
+# Clean all (including Cargo build artifacts and Debian artifacts)
+.PHONY: clean-all
+clean-all: clean clean-deb
+	@echo "All artifacts cleaned!"
 
 # Create release archive
 .PHONY: release-archive
@@ -111,20 +133,23 @@ release-archive: build
 	tar -czf odoo-backup-service-$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m).tar.gz -C release .
 	rm -rf release
 	@echo "Release archive created successfully!"
+	@$(MAKE) post-build
 
 # Show help
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  build          - Build the application (release mode)"
-	@echo "  dev            - Build the application (debug mode)"
-	@echo "  test           - Run all tests"
-	@echo "  clean          - Clean build artifacts"
-	@echo "  install        - Install the application to system"
-	@echo "  uninstall      - Remove the application from system"
-	@echo "  status         - Show installation status"
-	@echo "  run            - Install and run the application"
-	@echo "  deb            - Build Debian package"
-	@echo "  clean-deb      - Clean Debian build artifacts"
+	@echo "  build           - Build the application (release mode)"
+	@echo "  dev             - Build the application (debug mode)"
+	@echo "  test            - Run all tests"
+	@echo "  clean           - Clean Cargo build artifacts"
+	@echo "  clean-deb       - Clean Debian build artifacts"
+	@echo "  clean-all       - Clean all build artifacts"
+	@echo "  post-build      - Clean temporary Debian build files"
+	@echo "  install         - Install the application to system"
+	@echo "  uninstall       - Remove the application from system"
+	@echo "  status          - Show installation status"
+	@echo "  run             - Install and run the application"
+	@echo "  deb             - Build Debian package (includes post-build cleanup)"
 	@echo "  release-archive - Create release archive"
-	@echo "  help           - Show this help message"
+	@echo "  help            - Show this help message"

@@ -1,0 +1,58 @@
+# Rust build artifacts
+target/
+
+# Git files
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Backup files
+backups/
+*.zip
+*.dump
+
+# Environment files
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.temp
+
+# Debian package build artifacts
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars
+debian/*/
+
+# Package files
+*.deb
+*.dsc
+*.tar.gz
+*.changes
+*.buildinfo
+
+# Release archives
+release/
+
+# Documentation
+README.md
+
+# Scripts
+scripts/
+
+# Test files
+tests/

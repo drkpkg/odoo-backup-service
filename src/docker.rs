@@ -55,6 +55,21 @@ impl DockerManager {
         );
         let container_backup_path = format!("{}/{}", config.output_path, backup_filename);
 
+        // Ensure the backup directory exists inside the container
+        let mkdir_command = format!("mkdir -p {}", config.output_path);
+        let mkdir_output = Command::new("docker")
+            .args(["exec", &config.container_name, "sh", "-c", &mkdir_command])
+            .output()
+            .map_err(|e| BackupError::Docker(format!("Failed to create backup directory: {}", e)))?;
+
+        if !mkdir_output.status.success() {
+            let error_msg = String::from_utf8_lossy(&mkdir_output.stderr);
+            return Err(BackupError::Docker(format!(
+                "Failed to create backup directory: {}",
+                error_msg
+            )));
+        }
+
         // Create the curl command to execute inside the container
         let curl_command = format!(
             "curl -X POST -F 'master_pwd={}' -F 'name={}' -F 'backup_format={}' {}/web/database/backup -o {}",
