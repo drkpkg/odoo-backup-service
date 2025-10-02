@@ -3,6 +3,14 @@
 %:
 	dh $@
 
+override_dh_auto_clean:
+	# Only run cargo clean if cargo is available
+	@if command -v cargo >/dev/null 2>&1; then \
+		cargo clean; \
+	else \
+		echo "Cargo not available, skipping clean"; \
+	fi
+
 override_dh_auto_build:
 	cargo build --release
 
