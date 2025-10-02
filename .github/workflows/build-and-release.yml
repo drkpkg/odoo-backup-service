@@ -168,7 +168,7 @@ jobs:
         with:
           docker-image: ${{ matrix.docker-image }}
           buildpackage-opts: --build=binary --no-sign
-          extra-build-deps: rustc cargo build-essential pkg-config libssl-dev ca-certificates curl
+          extra-build-deps: rustc cargo build-essential pkg-config libssl-dev ca-certificates curl git
           setup-hook: |
             # Update certificates
             apt-get update
