@@ -168,7 +168,21 @@ jobs:
         with:
           docker-image: ${{ matrix.docker-image }}
           buildpackage-opts: --build=binary --no-sign
-          extra-build-deps: rustc cargo build-essential pkg-config libssl-dev
+          extra-build-deps: rustc cargo build-essential pkg-config libssl-dev ca-certificates curl
+          setup-hook: |
+            # Update certificates
+            apt-get update
+            apt-get install -y ca-certificates
+            update-ca-certificates
+            
+            # Configure Cargo to handle SSL issues
+            mkdir -p ~/.cargo
+            cat > ~/.cargo/config.toml << EOF
+            [net]
+            git-fetch-with-cli = true
+            [http]
+            check-revoke = false
+            EOF
           before-build-hook: |
             # Build the Rust application
             cargo build --release
