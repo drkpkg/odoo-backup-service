@@ -132,10 +132,13 @@ jobs:
         include:
           - distro: ubuntu-22.04
             codename: jammy
+            docker-image: ubuntu:22.04
           - distro: ubuntu-24.04
             codename: noble
+            docker-image: ubuntu:24.04
           - distro: debian-12
             codename: bookworm
+            docker-image: debian:12-slim
 
     steps:
       - name: Checkout code
@@ -153,34 +156,33 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Install dependencies
+      - name: Update changelog with current version
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libssl-dev devscripts debhelper
-
-      - name: Build application
-        run: cargo build --release
-
-      - name: Build Debian package
-        run: |
-          # Update changelog with current version
           VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
           sed -i "s/0.1.0-1/$VERSION-1/" debian/changelog
-          
-          # Ensure Rust environment is available for the build
-          export PATH="$HOME/.cargo/bin:$PATH"
-          export CARGO_HOME="$HOME/.cargo"
-          export RUSTUP_HOME="$HOME/.rustup"
-          
-          # Build package with -d flag to override dependency checks
-          dpkg-buildpackage -us -uc -b -d
-          
-          # List generated files for debugging
-          echo "Generated files:"
-          ls -la ../odoo-backup-service_*
-          
-          # Copy .deb file to current directory for upload
-          cp ../odoo-backup-service_*.deb .
+
+      - name: Build Debian package
+        uses: jtdor/build-deb-action@v1
+        env:
+          DEB_BUILD_OPTIONS: noautodbgsym
+        with:
+          docker-image: ${{ matrix.docker-image }}
+          buildpackage-opts: --build=binary --no-sign
+          extra-build-deps: curl build-essential pkg-config libssl-dev
+          before-build-hook: |
+            # Install Rust
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            export PATH="$HOME/.cargo/bin:$PATH"
+            export CARGO_HOME="$HOME/.cargo"
+            export RUSTUP_HOME="$HOME/.rustup"
+            
+            # Build the Rust application
+            cargo build --release
+            
+            # Copy the binary to the expected location
+            mkdir -p target/release
+            cp target/release/odoo-backup-service target/release/odoo-backup-service || true
+          artifacts-dir: debian/artifacts
 
       - name: Create binary archive
         run: |
@@ -192,20 +194,10 @@ jobs:
           rm -rf release
 
       - name: Upload Debian package
-        run: |
-          echo "Current directory contents:"
-          ls -la
-          echo "Looking for .deb files:"
-          ls -la *.deb || echo "No .deb files found in current directory"
-          echo "Looking in parent directory:"
-          ls -la ../*.deb || echo "No .deb files found in parent directory"
-        continue-on-error: true
-
-      - name: Upload Debian package
         uses: actions/upload-artifact@v4
         with:
           name: debian-package-${{ matrix.distro }}
-          path: odoo-backup-service_*.deb
+          path: debian/artifacts/*.deb
           if-no-files-found: warn
 
       - name: Upload binary archive
