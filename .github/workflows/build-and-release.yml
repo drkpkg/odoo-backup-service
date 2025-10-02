@@ -170,12 +170,23 @@ jobs:
         with:
           docker-image: ${{ matrix.docker-image }}
           buildpackage-opts: --build=binary --no-sign
-          extra-build-deps: rustc cargo build-essential pkg-config libssl-dev ca-certificates curl git
+          extra-build-deps: build-essential pkg-config libssl-dev ca-certificates curl git
           setup-hook: |
             # Update certificates
             apt-get update
             apt-get install -y ca-certificates
             update-ca-certificates
+            
+            # Install Rust using rustup (newer version)
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+            export PATH="$HOME/.cargo/bin:$PATH"
+            export CARGO_HOME="$HOME/.cargo"
+            export RUSTUP_HOME="$HOME/.rustup"
+            
+            # Make Rust available globally
+            echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> /etc/environment
+            echo 'export CARGO_HOME="$HOME/.cargo"' >> /etc/environment
+            echo 'export RUSTUP_HOME="$HOME/.rustup"' >> /etc/environment
             
             # Configure Cargo to handle SSL issues
             mkdir -p ~/.cargo
