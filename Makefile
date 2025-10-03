@@ -30,7 +30,13 @@ test:
 # Clean build artifacts
 .PHONY: clean
 clean:
-	/root/.cargo/bin/cargo clean
+	@if [ -f /root/.cargo/bin/cargo ]; then \
+		/root/.cargo/bin/cargo clean; \
+	elif command -v cargo >/dev/null 2>&1; then \
+		cargo clean; \
+	else \
+		echo "Cargo not available, skipping clean"; \
+	fi
 
 # Install the application
 .PHONY: install

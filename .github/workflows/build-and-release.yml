@@ -201,8 +201,15 @@ jobs:
             check-revoke = false
             EOF
           before-build-hook: |
-            # Build the Rust application using full path
-            /root/.cargo/bin/cargo build --release
+            # Ensure Rust is available
+            if [ ! -f /root/.cargo/bin/cargo ]; then
+              echo "Installing Rust..."
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+              export PATH="$HOME/.cargo/bin:$PATH"
+            fi
+            
+            # Build the Rust application
+            cargo build --release
             
             # Copy the binary to the expected location
             mkdir -p target/release

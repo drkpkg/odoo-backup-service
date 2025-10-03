@@ -4,7 +4,14 @@
 	dh $@
 
 override_dh_auto_build:
-	/root/.cargo/bin/cargo build --release
+	@if [ -f /root/.cargo/bin/cargo ]; then \
+		/root/.cargo/bin/cargo build --release; \
+	elif command -v cargo >/dev/null 2>&1; then \
+		cargo build --release; \
+	else \
+		echo "Error: Cargo not found"; \
+		exit 1; \
+	fi
 
 override_dh_auto_install:
 	# Create directories
