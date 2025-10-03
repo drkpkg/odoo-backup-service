@@ -4,7 +4,7 @@
 	dh $@
 
 override_dh_auto_build:
-	cargo build --release
+	/root/.cargo/bin/cargo build --release
 
 override_dh_auto_install:
 	# Create directories

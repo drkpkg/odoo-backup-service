@@ -30,7 +30,7 @@ test:
 # Clean build artifacts
 .PHONY: clean
 clean:
-	cargo clean
+	/root/.cargo/bin/cargo clean
 
 # Install the application
 .PHONY: install

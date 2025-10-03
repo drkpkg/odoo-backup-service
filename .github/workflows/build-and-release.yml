@@ -188,6 +188,10 @@ jobs:
             echo 'export CARGO_HOME="$HOME/.cargo"' >> /etc/environment
             echo 'export RUSTUP_HOME="$HOME/.rustup"' >> /etc/environment
             
+            # Create symlinks for global access
+            ln -sf "$HOME/.cargo/bin/cargo" /usr/local/bin/cargo
+            ln -sf "$HOME/.cargo/bin/rustc" /usr/local/bin/rustc
+            
             # Configure Cargo to handle SSL issues
             mkdir -p ~/.cargo
             cat > ~/.cargo/config.toml << EOF
@@ -197,8 +201,8 @@ jobs:
             check-revoke = false
             EOF
           before-build-hook: |
-            # Build the Rust application
-            cargo build --release
+            # Build the Rust application using full path
+            /root/.cargo/bin/cargo build --release
             
             # Copy the binary to the expected location
             mkdir -p target/release
