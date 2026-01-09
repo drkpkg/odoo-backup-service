@@ -1,3 +1,15 @@
+odoo-backup-service (0.1.6-1) unstable; urgency=medium
+
+  * Version bump to 0.1.6
+
+ -- Felix Daniel Coca Calvimontes <daniel.uremix@gmail.com>  Fri, 09 Jan 2026 14:22:40 -0400
+
+odoo-backup-service (0.1.5-1) unstable; urgency=medium
+
+  * Version bump to 0.1.5
+
+ -- Felix Daniel Coca Calvimontes <daniel.uremix@gmail.com>  Fri, 09 Jan 2026 14:21:37 -0400
+
 odoo-backup-service (0.1.4-1) unstable; urgency=medium
 
   * Version bump to 0.1.4

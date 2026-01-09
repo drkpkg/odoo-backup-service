@@ -122,8 +122,8 @@ deb:
 		exit 1; \
 	fi
 	@$(BUMP_VERSION_SCRIPT) --type patch >/dev/null 2>&1
-	@echo "Building Docker image for Debian package..."
-	@docker build -f Dockerfile.deb -t odoo-backup-service-deb:latest . || (echo "Error: Docker build failed"; exit 1)
+	@echo "Building Docker image for Debian package with BuildKit..."
+	@DOCKER_BUILDKIT=1 docker build -f Dockerfile.deb -t odoo-backup-service-deb:latest . || (echo "Error: Docker build failed"; exit 1)
 	@echo "Running Debian package build in Docker container..."
 	@mkdir -p ../debian-packages
 	@docker run --rm \
