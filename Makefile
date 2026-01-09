@@ -7,6 +7,7 @@ INSTALL_BIN_DIR = /usr/bin
 INSTALL_CONFIG_DIR = /etc/odoo-backup
 INSTALL_CONFIG_FILE = $(INSTALL_CONFIG_DIR)/config.json
 SAMPLE_CONFIG = config.json.example
+BUMP_VERSION_SCRIPT = scripts/bump-version.sh
 
 # Default target
 .PHONY: all
@@ -16,6 +17,30 @@ all: build
 .PHONY: build
 build:
 	cargo build --release
+
+# Version bumping targets
+.PHONY: version-patch version-minor version-major version
+version-patch:
+	@$(BUMP_VERSION_SCRIPT) --type patch
+
+version-minor:
+	@$(BUMP_VERSION_SCRIPT) --type minor
+
+version-major:
+	@$(BUMP_VERSION_SCRIPT) --type major
+
+version:
+	@echo "Current version: $$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')"
+	@echo ""
+	@echo "Available version bump commands:"
+	@echo "  make version-patch  - Bump patch version (0.1.2 -> 0.1.3)"
+	@echo "  make version-minor  - Bump minor version (0.1.2 -> 0.2.0)"
+	@echo "  make version-major  - Bump major version (0.1.2 -> 1.0.0)"
+	@echo ""
+	@echo "Or use the script directly:"
+	@echo "  ./scripts/bump-version.sh --type patch"
+	@echo "  ./scripts/bump-version.sh --version 0.2.0"
+	@echo "  ./scripts/bump-version.sh --dry-run"
 
 # Build for development
 .PHONY: dev
@@ -88,13 +113,46 @@ status:
 run: install
 	$(BINARY_NAME) --config $(INSTALL_CONFIG_FILE) list
 
-# Build Debian package
+# Build Debian package using Docker (automatically increments patch version)
 .PHONY: deb
-deb: build
-	@echo "Building Debian package..."
-	dpkg-buildpackage -us -uc -b
+deb:
+	@echo "Building Debian package using Docker..."
+	@if ! command -v docker >/dev/null 2>&1; then \
+		echo "Error: Docker is not installed or not in PATH"; \
+		exit 1; \
+	fi
+	@$(BUMP_VERSION_SCRIPT) --type patch >/dev/null 2>&1
+	@echo "Building Docker image for Debian package..."
+	@docker build -f Dockerfile.deb -t odoo-backup-service-deb:latest . || (echo "Error: Docker build failed"; exit 1)
+	@echo "Running Debian package build in Docker container..."
+	@mkdir -p ../debian-packages
+	@docker run --rm \
+		-v "$(PWD):/workspace" \
+		-v "$(PWD)/../debian-packages:/output" \
+		-w /workspace \
+		odoo-backup-service-deb:latest \
+		make deb-docker || (echo "Error: Docker build failed"; exit 1)
 	@echo "Debian package built successfully!"
+	@echo "Package location: ../debian-packages/"
+
+# Internal target for building Debian package (called inside Docker)
+.PHONY: deb-docker
+deb-docker: build
+	@echo "Building Debian package inside Docker..."
+	dpkg-buildpackage -us -uc -b
+	@echo "Moving Debian package files to output directory..."
+	@mkdir -p /output
+	@mv ../odoo-backup-service_*.deb /output/ 2>/dev/null || true
+	@mv ../odoo-backup-service_*.dsc /output/ 2>/dev/null || true
+	@mv ../odoo-backup-service_*.tar.gz /output/ 2>/dev/null || true
+	@mv ../odoo-backup-service_*.changes /output/ 2>/dev/null || true
+	@mv ../odoo-backup-service_*.buildinfo /output/ 2>/dev/null || true
 	@$(MAKE) post-build
+
+# Build with version bump (patch)
+.PHONY: build-bump
+build-bump: version-patch build
+	@echo "Version bumped and build completed!"
 
 # Post-build cleanup - removes temporary Debian build artifacts
 .PHONY: post-build
@@ -110,7 +168,7 @@ post-build:
 	@rm -rf var/ 2>/dev/null || true
 	@echo "Post-build cleanup completed!"
 
-# Clean Debian build artifacts (including parent directory)
+# Clean Debian build artifacts (including parent directory and Docker output)
 .PHONY: clean-deb
 clean-deb:
 	@echo "Cleaning Debian build artifacts..."
@@ -120,6 +178,10 @@ clean-deb:
 	rm -f ../odoo-backup-service_*.changes
 	rm -f ../odoo-backup-service_*.buildinfo
 	rm -f *.deb
+	@if [ -d ../debian-packages ]; then \
+		rm -f ../debian-packages/odoo-backup-service_*.*; \
+		echo "Cleaned Docker output directory"; \
+	fi
 	@$(MAKE) post-build
 	@echo "Debian build artifacts cleaned!"
 
@@ -156,6 +218,6 @@ help:
 	@echo "  uninstall       - Remove the application from system"
 	@echo "  status          - Show installation status"
 	@echo "  run             - Install and run the application"
-	@echo "  deb             - Build Debian package (includes post-build cleanup)"
+	@echo "  deb             - Build Debian package using Docker (auto-increments patch version)"
 	@echo "  release-archive - Create release archive"
 	@echo "  help            - Show this help message"

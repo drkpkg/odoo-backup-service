@@ -44,3 +44,6 @@ Thumbs.db
 # Release archives
 *.tar.gz
 /release/
+
+# Docker build output
+../debian-packages/

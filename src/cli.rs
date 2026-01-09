@@ -9,7 +9,7 @@ pub struct Cli {
     pub command: Commands,
 
     /// Path to the databases configuration file
-    #[arg(short, long, default_value = "/etc/odoo-backup/config.json")]
+    #[arg(short = 'f', long, default_value = "/etc/odoo-backup/config.json")]
     pub config: String,
 
     /// Host directory to store backups
@@ -26,8 +26,11 @@ pub enum Commands {
     /// Run backups for all configured databases
     Backup {
         /// Backup only a specific client by name
-        #[arg(short, long)]
+        #[arg(short = 'c', long)]
         client: Option<String>,
+        /// Run backups in parallel (only applies when backing up all databases)
+        #[arg(short, long)]
+        parallel: bool,
     },
     /// List all configured databases
     List,
@@ -55,7 +58,13 @@ mod tests {
     #[test]
     fn test_cli_parsing_backup_command() {
         let cli = Cli::try_parse_from(&["odoo-backup", "backup"]).unwrap();
-        assert!(matches!(cli.command, Commands::Backup { client: None }));
+        match cli.command {
+            Commands::Backup { client, parallel } => {
+                assert_eq!(client, None);
+                assert!(!parallel);
+            }
+            _ => panic!("Expected Backup command"),
+        }
         assert_eq!(cli.config, "/etc/odoo-backup/config.json");
         assert_eq!(cli.backup_dir, "/var/backups/odoo");
         assert!(!cli.verbose);
@@ -66,8 +75,53 @@ mod tests {
         let cli =
             Cli::try_parse_from(&["odoo-backup", "backup", "--client", "Test Client"]).unwrap();
         match cli.command {
-            Commands::Backup { client } => {
+            Commands::Backup { client, parallel } => {
                 assert_eq!(client, Some("Test Client".to_string()));
+                assert!(!parallel);
+            }
+            _ => panic!("Expected Backup command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parsing_backup_with_client_short_flag() {
+        let cli =
+            Cli::try_parse_from(&["odoo-backup", "backup", "-c", "Test Client"]).unwrap();
+        match cli.command {
+            Commands::Backup { client, parallel } => {
+                assert_eq!(client, Some("Test Client".to_string()));
+                assert!(!parallel);
+            }
+            _ => panic!("Expected Backup command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parsing_backup_with_parallel() {
+        let cli = Cli::try_parse_from(&["odoo-backup", "backup", "--parallel"]).unwrap();
+        match cli.command {
+            Commands::Backup { client, parallel } => {
+                assert_eq!(client, None);
+                assert!(parallel);
+            }
+            _ => panic!("Expected Backup command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parsing_backup_with_client_and_parallel() {
+        let cli = Cli::try_parse_from(&[
+            "odoo-backup",
+            "backup",
+            "--client",
+            "Test Client",
+            "--parallel",
+        ])
+        .unwrap();
+        match cli.command {
+            Commands::Backup { client, parallel } => {
+                assert_eq!(client, Some("Test Client".to_string()));
+                assert!(parallel);
             }
             _ => panic!("Expected Backup command"),
         }
@@ -126,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_cli_parsing_with_custom_config() {
-        let cli = Cli::try_parse_from(&["odoo-backup", "-c", "custom.json", "list"]).unwrap();
+        let cli = Cli::try_parse_from(&["odoo-backup", "-f", "custom.json", "list"]).unwrap();
         assert_eq!(cli.config, "custom.json");
         assert!(matches!(cli.command, Commands::List));
     }
@@ -149,7 +203,7 @@ mod tests {
     fn test_cli_parsing_with_short_flags() {
         let cli = Cli::try_parse_from(&[
             "odoo-backup",
-            "-c",
+            "-f",
             "test.json",
             "-b",
             "/tmp",
@@ -160,7 +214,13 @@ mod tests {
         assert_eq!(cli.config, "test.json");
         assert_eq!(cli.backup_dir, "/tmp");
         assert!(cli.verbose);
-        assert!(matches!(cli.command, Commands::Backup { client: None }));
+        match cli.command {
+            Commands::Backup { client, parallel } => {
+                assert_eq!(client, None);
+                assert!(!parallel);
+            }
+            _ => panic!("Expected Backup command"),
+        }
     }
 
     #[test]
@@ -178,7 +238,13 @@ mod tests {
         assert_eq!(cli.config, "test.json");
         assert_eq!(cli.backup_dir, "/tmp");
         assert!(cli.verbose);
-        assert!(matches!(cli.command, Commands::Backup { client: None }));
+        match cli.command {
+            Commands::Backup { client, parallel } => {
+                assert_eq!(client, None);
+                assert!(!parallel);
+            }
+            _ => panic!("Expected Backup command"),
+        }
     }
 
     #[test]
@@ -196,9 +262,17 @@ mod tests {
     #[test]
     fn test_commands_enum_variants() {
         // Test that all command variants can be created
-        let _backup = Commands::Backup { client: None };
+        let _backup = Commands::Backup {
+            client: None,
+            parallel: false,
+        };
         let _backup_with_client = Commands::Backup {
             client: Some("test".to_string()),
+            parallel: false,
+        };
+        let _backup_parallel = Commands::Backup {
+            client: None,
+            parallel: true,
         };
         let _list = Commands::List;
         let _status = Commands::Status;

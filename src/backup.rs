@@ -4,6 +4,7 @@ use crate::error::{BackupError, Result};
 use chrono::{DateTime, Duration, Utc};
 use std::fs;
 use std::path::Path;
+use tokio::task::JoinHandle;
 
 pub struct BackupManager {
     docker: DockerManager,
@@ -21,16 +22,19 @@ impl BackupManager {
     pub async fn backup_database(&self, config: &DatabaseConfig) -> Result<String> {
         log::info!("Starting backup for database: {}", config.name);
 
+        // Get individual backup directory for this database
+        let db_backup_dir = self.get_database_backup_dir(config);
+
         // Ensure host backup directory exists
-        self.ensure_backup_directory().await?;
+        self.ensure_backup_directory(&db_backup_dir).await?;
 
         // Execute backup inside container
         let container_backup_path = self.docker.execute_backup(config).await?;
 
-        // Copy backup to host
+        // Copy backup to host (using individual directory)
         let host_backup_path = self
             .docker
-            .copy_backup_to_host(config, &container_backup_path, &self.host_backup_dir)
+            .copy_backup_to_host(config, &container_backup_path, &db_backup_dir)
             .await?;
 
         // Cleanup container backup file
@@ -44,6 +48,11 @@ impl BackupManager {
             host_backup_path
         );
         Ok(host_backup_path)
+    }
+
+    /// Get the individual backup directory path for a specific database
+    fn get_database_backup_dir(&self, config: &DatabaseConfig) -> String {
+        format!("{}/{}", self.host_backup_dir, config.database_name)
     }
 
     pub async fn backup_all_databases(
@@ -73,8 +82,52 @@ impl BackupManager {
         Ok(results)
     }
 
+    /// Backup all databases in parallel using async tasks
+    pub async fn backup_all_databases_parallel(
+        &self,
+        configs: &[DatabaseConfig],
+    ) -> Result<Vec<(String, Result<String>)>> {
+        let mut handles: Vec<JoinHandle<(String, Result<String>)>> = Vec::new();
+
+        // Spawn a task for each database backup
+        for config in configs {
+            let config_clone = config.clone();
+            let backup_manager = BackupManager {
+                docker: DockerManager::new(),
+                host_backup_dir: self.host_backup_dir.clone(),
+            };
+
+            let handle = tokio::spawn(async move {
+                let name = config_clone.name.clone();
+                let result = backup_manager.backup_database(&config_clone).await;
+                (name, result)
+            });
+
+            handles.push(handle);
+        }
+
+        // Wait for all tasks to complete and collect results
+        let mut results = Vec::new();
+        for handle in handles {
+            match handle.await {
+                Ok((name, result)) => {
+                    results.push((name, result));
+                }
+                Err(e) => {
+                    log::error!("Task join error: {}", e);
+                    results.push(("unknown".to_string(), Err(BackupError::Unknown(format!("Task join error: {}", e)))));
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
     pub async fn cleanup_old_backups(&self, config: &DatabaseConfig) -> Result<u32> {
-        let backup_dir = Path::new(&self.host_backup_dir);
+        // Use individual database directory
+        let db_backup_dir = self.get_database_backup_dir(config);
+        let backup_dir = Path::new(&db_backup_dir);
+        
         if !backup_dir.exists() {
             return Ok(0);
         }
@@ -94,30 +147,25 @@ impl BackupManager {
             let path = entry.path();
 
             if path.is_file() {
-                let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                let metadata = entry.metadata().map_err(|e| {
+                    BackupError::FileSystem(format!("Failed to get file metadata: {}", e))
+                })?;
 
-                // Check if this is a backup file for this database
-                if filename.contains(&config.database_name) {
-                    let metadata = entry.metadata().map_err(|e| {
-                        BackupError::FileSystem(format!("Failed to get file metadata: {}", e))
+                let modified_time = metadata.modified().map_err(|e| {
+                    BackupError::FileSystem(format!(
+                        "Failed to get file modification time: {}",
+                        e
+                    ))
+                })?;
+
+                let modified_datetime: DateTime<Utc> = modified_time.into();
+
+                if modified_datetime < cutoff_date {
+                    log::info!("Deleting old backup: {}", path.display());
+                    fs::remove_file(&path).map_err(|e| {
+                        BackupError::FileSystem(format!("Failed to delete old backup: {}", e))
                     })?;
-
-                    let modified_time = metadata.modified().map_err(|e| {
-                        BackupError::FileSystem(format!(
-                            "Failed to get file modification time: {}",
-                            e
-                        ))
-                    })?;
-
-                    let modified_datetime: DateTime<Utc> = modified_time.into();
-
-                    if modified_datetime < cutoff_date {
-                        log::info!("Deleting old backup: {}", path.display());
-                        fs::remove_file(&path).map_err(|e| {
-                            BackupError::FileSystem(format!("Failed to delete old backup: {}", e))
-                        })?;
-                        deleted_count += 1;
-                    }
+                    deleted_count += 1;
                 }
             }
         }
@@ -130,13 +178,13 @@ impl BackupManager {
         Ok(deleted_count)
     }
 
-    async fn ensure_backup_directory(&self) -> Result<()> {
-        let backup_dir = Path::new(&self.host_backup_dir);
-        if !backup_dir.exists() {
-            fs::create_dir_all(backup_dir).map_err(|e| {
+    async fn ensure_backup_directory(&self, backup_dir: &str) -> Result<()> {
+        let backup_path = Path::new(backup_dir);
+        if !backup_path.exists() {
+            fs::create_dir_all(backup_path).map_err(|e| {
                 BackupError::FileSystem(format!("Failed to create backup directory: {}", e))
             })?;
-            log::info!("Created backup directory: {}", self.host_backup_dir);
+            log::info!("Created backup directory: {}", backup_dir);
         }
         Ok(())
     }
@@ -147,26 +195,60 @@ impl BackupManager {
             return Ok(Vec::new());
         }
 
-        let entries = fs::read_dir(backup_dir).map_err(|e| {
-            BackupError::FileSystem(format!("Failed to read backup directory: {}", e))
-        })?;
-
         let mut backups = Vec::new();
-        for entry in entries {
-            let entry = entry.map_err(|e| {
-                BackupError::FileSystem(format!("Failed to read directory entry: {}", e))
-            })?;
-            let path = entry.path();
 
-            if path.is_file() {
-                let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if let Some(db_name) = database_name {
+            // List backups for a specific database (from its individual directory)
+            let db_backup_dir = format!("{}/{}", self.host_backup_dir, db_name);
+            let db_path = Path::new(&db_backup_dir);
+            
+            if db_path.exists() {
+                let entries = fs::read_dir(db_path).map_err(|e| {
+                    BackupError::FileSystem(format!("Failed to read backup directory: {}", e))
+                })?;
 
-                if let Some(db_name) = database_name {
-                    if filename.contains(db_name) {
-                        backups.push(filename.to_string());
+                for entry in entries {
+                    let entry = entry.map_err(|e| {
+                        BackupError::FileSystem(format!("Failed to read directory entry: {}", e))
+                    })?;
+                    let path = entry.path();
+
+                    if path.is_file() {
+                        let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                        backups.push(format!("{}/{}", db_name, filename));
                     }
-                } else {
-                    backups.push(filename.to_string());
+                }
+            }
+        } else {
+            // List all backups from all database directories
+            let entries = fs::read_dir(backup_dir).map_err(|e| {
+                BackupError::FileSystem(format!("Failed to read backup directory: {}", e))
+            })?;
+
+            for entry in entries {
+                let entry = entry.map_err(|e| {
+                    BackupError::FileSystem(format!("Failed to read directory entry: {}", e))
+                })?;
+                let path = entry.path();
+
+                if path.is_dir() {
+                    // This is a database directory
+                    let db_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                    let db_entries = fs::read_dir(&path).map_err(|e| {
+                        BackupError::FileSystem(format!("Failed to read database directory: {}", e))
+                    })?;
+
+                    for db_entry in db_entries {
+                        let db_entry = db_entry.map_err(|e| {
+                            BackupError::FileSystem(format!("Failed to read directory entry: {}", e))
+                        })?;
+                        let backup_path = db_entry.path();
+
+                        if backup_path.is_file() {
+                            let filename = backup_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                            backups.push(format!("{}/{}", db_name, filename));
+                        }
+                    }
                 }
             }
         }

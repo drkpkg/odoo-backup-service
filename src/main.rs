@@ -1,6 +1,8 @@
 use clap::Parser;
 use log::{error, info, warn};
+use std::collections::HashMap;
 use std::env;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 mod backup;
 mod cli;
@@ -43,16 +45,29 @@ async fn run(cli: Cli) -> Result<()> {
     let docker_manager = DockerManager::new();
 
     match cli.command {
-        Commands::Backup { client } => {
+        Commands::Backup { client, parallel } => {
             if let Some(client_name) = client {
-                // Backup specific client
+                // Backup specific client (parallel flag is ignored for single client)
                 if let Some(db_config) = config.get_database(&client_name) {
                     info!("Backing up client: {}", client_name);
+                    
+                    // Create progress bar for single backup
+                    let pb = ProgressBar::new_spinner();
+                    pb.set_style(
+                        ProgressStyle::default_spinner()
+                            .template("{spinner:.green} {msg}")
+                            .unwrap(),
+                    );
+                    pb.set_message(format!("Backing up {}...", client_name));
+                    pb.enable_steady_tick(std::time::Duration::from_millis(100));
+                    
                     match backup_manager.backup_database(db_config).await {
                         Ok(backup_path) => {
+                            pb.finish_with_message(format!("✓ Backup completed: {}", backup_path));
                             println!("Backup completed successfully: {}", backup_path);
                         }
                         Err(e) => {
+                            pb.finish_with_message(format!("✗ Backup failed: {}", e));
                             error!("Backup failed for {}: {}", client_name, e);
                             return Err(e);
                         }
@@ -66,17 +81,91 @@ async fn run(cli: Cli) -> Result<()> {
                 }
             } else {
                 // Backup all clients
-                info!("Backing up all configured databases");
-                let results = backup_manager
-                    .backup_all_databases(&config.databases)
-                    .await?;
+                if parallel {
+                    info!("Backing up all configured databases in parallel");
+                    
+                    // Create multi-progress for parallel backups
+                    let multi = MultiProgress::new();
+                    let mut progress_bars = HashMap::new();
 
-                if results.is_empty() {
-                    warn!("No backups were completed successfully");
+                    // Initialize progress bars for each database before starting backups
+                    for db_config in &config.databases {
+                        let pb = multi.add(ProgressBar::new_spinner());
+                        pb.set_style(
+                            ProgressStyle::default_spinner()
+                                .template("{spinner:.green} {msg}")
+                                .unwrap(),
+                        );
+                        pb.set_message(format!("Starting backup for {}...", db_config.name));
+                        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+                        progress_bars.insert(db_config.name.clone(), pb);
+                    }
+
+                    // Start parallel backups
+                    let results = backup_manager
+                        .backup_all_databases_parallel(&config.databases)
+                        .await?;
+
+                    // Process results and update progress bars
+                    let mut success_count = 0;
+                    let mut failed_count = 0;
+                    let mut success_results = Vec::new();
+                    let mut failed_results = Vec::new();
+
+                    for (name, result) in results {
+                        if let Some(pb) = progress_bars.get(&name) {
+                            match result {
+                                Ok(backup_path) => {
+                                    pb.finish_with_message(format!("✓ {}: {}", name, backup_path));
+                                    success_count += 1;
+                                    success_results.push((name.clone(), backup_path));
+                                }
+                                Err(e) => {
+                                    pb.finish_with_message(format!("✗ {}: {}", name, e));
+                                    failed_count += 1;
+                                    failed_results.push((name.clone(), e.to_string()));
+                                }
+                            }
+                        }
+                    }
+
+                    println!("\nBackup Summary:");
+                    println!("  Successful: {}", success_count);
+                    println!("  Failed: {}", failed_count);
+
+                    if !success_results.is_empty() {
+                        println!("\nSuccessful backups:");
+                        for (client_name, backup_path) in &success_results {
+                            println!("  - {}: {}", client_name, backup_path);
+                        }
+                    }
+
+                    if !failed_results.is_empty() {
+                        println!("\nFailed backups:");
+                        for (client_name, error_msg) in &failed_results {
+                            println!("  - {}: {}", client_name, error_msg);
+                        }
+                        warn!("Some backups failed");
+                    }
+
+                    if success_results.is_empty() {
+                        return Err(error::BackupError::Unknown(
+                            "No backups were completed successfully".to_string(),
+                        ));
+                    }
                 } else {
-                    println!("Completed {} backups:", results.len());
-                    for (client_name, backup_path) in results {
-                        println!("  - {}: {}", client_name, backup_path);
+                    info!("Backing up all configured databases sequentially");
+                    let results = backup_manager
+                        .backup_all_databases(&config.databases)
+                        .await?;
+
+                    if results.is_empty() {
+                        warn!("No backups were completed successfully");
+                    } else {
+                        println!("Completed {} backups:", results.len());
+                        for (client_name, backup_path) in results {
+                            println!("  - {}: {}", client_name, backup_path);
+                        }
                     }
                 }
             }
